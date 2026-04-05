@@ -126,11 +126,19 @@ curl http://localhost:8000/api/v1/video/jobs/JOB_ID \
 └── tests/               # Unit & integration tests
 ```
 
-## Docs
+## Tài liệu (Docs)
 
-- [Implementation Plan](docs/implementation-plan.md)
-- [Git Workflow](docs/git-workflow.md)
-- [Deployment Workflow](docs/deployment-workflow.md)
+### Hướng dẫn sử dụng
+- [📖 Hướng dẫn sử dụng API](docs/api-usage-guide.md) — Chi tiết tất cả endpoints, ví dụ curl
+
+### Cấu hình & Triển khai
+- [🚀 Deployment Workflow](docs/deployment-workflow.md) — Luồng deploy lên VPS
+- [🌐 Cấu hình Cloudflare Tunnel](docs/cloudflare-tunnel-setup.md) — Public API qua domain
+- [☁️ Cấu hình Cloudflare R2](docs/cloudflare-r2-setup.md) — Lưu trữ video output
+
+### Quy trình làm việc
+- [🔀 Git Workflow](docs/git-workflow.md) — Gitflow branching (prod/staging/dev)
+- [📋 Implementation Plan](docs/implementation-plan.md) — Kế hoạch triển khai chi tiết
 
 ## License
 

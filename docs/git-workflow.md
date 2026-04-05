@@ -89,30 +89,17 @@ prod ──► hotfix/xxx ──► PR vào prod ──► đồng bộ prod →
 
 4. **Đồng bộ** `prod` vào `staging` và `dev`:
    ```bash
-   # Đồng bộ staging
-   git checkout staging
-   git pull origin staging
-   git merge prod
-   git push origin staging
-
-   # Đồng bộ dev
-   git checkout dev
-   git pull origin dev
-   git merge prod
-   git push origin dev
+   git checkout staging && git merge prod && git push origin staging
+   git checkout dev && git merge prod && git push origin dev
    ```
 
 ---
 
 ## Quy ước Commit Message
 
-Sử dụng format [Conventional Commits](https://www.conventionalcommits.org/):
-
 ```
 <type>: <mô tả ngắn gọn> #<issue_id>
 ```
-
-### Các type thường dùng
 
 | Type | Mô tả | Ví dụ |
 |------|--------|-------|
@@ -164,17 +151,8 @@ Sử dụng format [Conventional Commits](https://www.conventionalcommits.org/):
 2. **Không push trực tiếp** vào `prod` và `staging` — chỉ merge qua PR.
 3. **Luôn pull trước khi tạo nhánh mới** để đảm bảo code mới nhất.
 4. **Đồng bộ các nhánh sau hotfix** (`prod` → `staging` → `dev`).
-5. **Xóa nhánh feature/hotfix** sau khi đã merge xong để giữ repo sạch sẽ:
+5. **Xóa nhánh feature/hotfix** sau khi đã merge:
    ```bash
-   # Xóa local
    git branch -d feat/<feature_name>
-   # Xóa remote
    git push origin --delete feat/<feature_name>
-   ```
-6. **Giải quyết conflict** tại nhánh feature trước khi tạo PR:
-   ```bash
-   git checkout feat/<feature_name>
-   git merge dev
-   # Giải quyết conflict nếu có
-   git push origin feat/<feature_name>
    ```
