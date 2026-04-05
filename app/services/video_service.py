@@ -6,7 +6,7 @@ import time
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from app.models.job import Job
-from app.services.storage_service import upload_file_to_r2
+from app.services.storage_service import upload_file_to_storage
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -57,25 +57,25 @@ def _finalize_job(
     start_time: float,
     input_paths: list[str] | None = None,
 ):
-    """Upload output to R2, update job, and clean up temp files."""
+    """Save output to local storage, update job, and clean up temp files."""
     try:
         # Get file size
         file_size = os.path.getsize(output_path)
         ext = os.path.splitext(output_path)[1]
         object_name = f"output/{job.id}{ext}"
 
-        # Upload to R2
-        public_url = upload_file_to_r2(output_path, object_name)
+        # Save to local storage
+        download_url = upload_file_to_storage(output_path, object_name)
 
-        if public_url:
+        if download_url:
             job.status = "completed"
-            job.output_url = public_url
+            job.output_url = download_url
             job.output_filename = f"{job.operation}_{job.id[:8]}{ext}"
             job.file_size = file_size
             job.progress = 100.0
         else:
             job.status = "failed"
-            job.error_message = "Failed to upload to R2 storage"
+            job.error_message = "Failed to save output file"
 
     except Exception as e:
         job.status = "failed"

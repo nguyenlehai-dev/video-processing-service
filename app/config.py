@@ -18,12 +18,7 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite:///./data/app.db"
 
-    # Cloudflare R2
-    R2_ACCOUNT_ID: str = ""
-    R2_ACCESS_KEY_ID: str = ""
-    R2_SECRET_ACCESS_KEY: str = ""
-    R2_BUCKET_NAME: str = "video-output"
-    R2_PUBLIC_URL: str = ""
+    # Storage: files saved locally at ./data/output/
 
     # Cloudflare Tunnel
     CLOUDFLARE_TUNNEL_TOKEN: str = ""

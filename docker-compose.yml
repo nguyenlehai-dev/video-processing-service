@@ -10,7 +10,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./data:/app/data               # SQLite database (persistent)
+      - ./data:/app/data               # SQLite DB + video output (persistent)
       - video-temp:/tmp/video-processing # Temp files for processing
     restart: unless-stopped
     networks:

@@ -407,7 +407,7 @@ curl https://api.xyz.com/api/v1/video/jobs/JOB_ID \
   "operation": "cut",
   "status": "completed",
   "progress": 100.0,
-  "output_url": "https://pub-xxx.r2.dev/output/job-uuid.mp4",
+  "output_url": "/api/v1/video/download/job-uuid.mp4",
   "output_filename": "cut_job-uuid.mp4",
   "file_size": 1548000,
   "duration": 3.45,
@@ -415,6 +415,11 @@ curl https://api.xyz.com/api/v1/video/jobs/JOB_ID \
   "completed_at": "2026-04-06T01:00:03"
 }
 ```
+
+> 💡 **Download file:** Dùng `output_url` để download kết quả:
+> ```bash
+> curl -O https://api.xyz.com/api/v1/video/download/job-uuid.mp4
+> ```
 
 **Response khi lỗi:**
 ```json

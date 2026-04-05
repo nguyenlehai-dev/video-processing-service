@@ -1,10 +1,12 @@
 import os
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.api.deps import get_user_from_api_key
 from app.services import video_service
+from app.services.storage_service import get_file_path
 from app.schemas.video import VideoProcessResponse
 from app.schemas.job import JobResponse, JobListResponse
 from app.models.user import User
@@ -232,3 +234,27 @@ async def get_job(
             detail="Job not found",
         )
     return job
+
+
+# ===== FILE DOWNLOAD =====
+
+
+@router.get("/download/{filename}")
+async def download_file(filename: str):
+    """
+    Download a processed video/audio file.
+
+    This endpoint is returned in the `output_url` field of completed jobs.
+    """
+    file_path = get_file_path(filename)
+    if not file_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found",
+        )
+
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type="application/octet-stream",
+    )

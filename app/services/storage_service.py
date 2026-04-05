@@ -1,95 +1,76 @@
-import boto3
-from botocore.exceptions import ClientError
-from app.config import get_settings
 import os
+import shutil
 import logging
+from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-
-def get_r2_client():
-    """Create and return a boto3 S3 client configured for Cloudflare R2."""
-    return boto3.client(
-        "s3",
-        endpoint_url=f"https://{settings.R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
-        aws_access_key_id=settings.R2_ACCESS_KEY_ID,
-        aws_secret_access_key=settings.R2_SECRET_ACCESS_KEY,
-        region_name="auto",
-    )
+# Output directory for processed videos
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "output")
 
 
-def upload_file_to_r2(file_path: str, object_name: str) -> str | None:
+def _ensure_output_dir():
+    """Ensure output directory exists."""
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+
+def upload_file_to_storage(file_path: str, object_name: str) -> str | None:
     """
-    Upload a file to Cloudflare R2.
+    Save a processed file to local storage.
 
     Args:
-        file_path: Local path to the file
-        object_name: S3 object key (path in the bucket)
+        file_path: Local path to the temp file
+        object_name: Relative path for storing (e.g., "output/job-id.mp4")
 
     Returns:
-        Public URL of the uploaded file, or None if failed
+        Download URL path, or None if failed
     """
     try:
-        client = get_r2_client()
-        content_type = _get_content_type(file_path)
+        _ensure_output_dir()
 
-        client.upload_file(
-            file_path,
-            settings.R2_BUCKET_NAME,
-            object_name,
-            ExtraArgs={"ContentType": content_type},
-        )
+        # Extract just the filename from object_name
+        filename = os.path.basename(object_name)
+        dest_path = os.path.join(OUTPUT_DIR, filename)
 
-        # Construct public URL
-        public_url = f"{settings.R2_PUBLIC_URL}/{object_name}"
-        logger.info(f"Uploaded {file_path} to R2: {public_url}")
-        return public_url
+        # Copy file to output directory
+        shutil.copy2(file_path, dest_path)
+        file_size = os.path.getsize(dest_path)
 
-    except ClientError as e:
-        logger.error(f"Failed to upload to R2: {e}")
+        logger.info(f"Saved {file_path} to {dest_path} ({file_size} bytes)")
+
+        # Return the API download URL path
+        download_url = f"/api/v1/video/download/{filename}"
+        return download_url
+
+    except Exception as e:
+        logger.error(f"Failed to save file: {e}")
         return None
 
 
-def delete_file_from_r2(object_name: str) -> bool:
-    """Delete a file from Cloudflare R2."""
+def delete_file_from_storage(object_name: str) -> bool:
+    """Delete a file from local storage."""
     try:
-        client = get_r2_client()
-        client.delete_object(Bucket=settings.R2_BUCKET_NAME, Key=object_name)
-        logger.info(f"Deleted {object_name} from R2")
+        filename = os.path.basename(object_name)
+        file_path = os.path.join(OUTPUT_DIR, filename)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            logger.info(f"Deleted {file_path}")
         return True
-    except ClientError as e:
-        logger.error(f"Failed to delete from R2: {e}")
+    except Exception as e:
+        logger.error(f"Failed to delete file: {e}")
         return False
 
 
-def generate_presigned_url(object_name: str, expiration: int = 3600) -> str | None:
-    """Generate a presigned URL for temporary access."""
-    try:
-        client = get_r2_client()
-        url = client.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": settings.R2_BUCKET_NAME, "Key": object_name},
-            ExpiresIn=expiration,
-        )
-        return url
-    except ClientError as e:
-        logger.error(f"Failed to generate presigned URL: {e}")
-        return None
+def get_file_path(filename: str) -> str | None:
+    """Get the full path of a stored file."""
+    file_path = os.path.join(OUTPUT_DIR, filename)
+    if os.path.exists(file_path):
+        return file_path
+    return None
 
 
-def _get_content_type(file_path: str) -> str:
-    """Determine content type from file extension."""
-    ext = os.path.splitext(file_path)[1].lower()
-    content_types = {
-        ".mp4": "video/mp4",
-        ".avi": "video/x-msvideo",
-        ".mkv": "video/x-matroska",
-        ".mov": "video/quicktime",
-        ".webm": "video/webm",
-        ".mp3": "audio/mpeg",
-        ".wav": "audio/wav",
-        ".aac": "audio/aac",
-        ".flac": "audio/flac",
-    }
-    return content_types.get(ext, "application/octet-stream")
+def get_output_dir() -> str:
+    """Get the output directory path."""
+    _ensure_output_dir()
+    return OUTPUT_DIR
