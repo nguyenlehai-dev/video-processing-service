@@ -1,8 +1,10 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 
 
 class JobResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     operation: str
     status: str
@@ -14,9 +16,23 @@ class JobResponse(BaseModel):
     duration: float | None = None
     created_at: datetime
     completed_at: datetime | None = None
+    params: dict | None = None
+    input_files: list | None = None
 
-    class Config:
-        from_attributes = True
+
+class JobInitRequest(BaseModel):
+    tool_name: str
+    filenames: list[str]
+
+
+class JobInitResponse(BaseModel):
+    job_id: str
+    upload_urls: list[str]
+    object_keys: list[str]
+
+
+class JobProgressRequest(BaseModel):
+    progress: int
 
 
 class JobListResponse(BaseModel):

@@ -20,7 +20,7 @@ API Service xử lý video sử dụng FFmpeg, xây dựng bằng Python (FastAP
 - **Video:** FFmpeg (subprocess)
 - **Database:** SQLite (SQLAlchemy ORM)
 - **Auth:** JWT + API Key
-- **Storage:** Cloudflare R2 (S3-compatible)
+- **Storage:** Cloudflare R2 (primary) with local fallback for development
 - **Deploy:** Docker + Cloudflare Tunnel
 
 ## Quick Start
@@ -101,7 +101,7 @@ curl -X POST http://localhost:8000/api/v1/video/resize \
   -F "height=720"
 ```
 
-### Bước 4: Kiểm tra trạng thái
+### Bước 4: Kiểm tra trạng thái job
 
 ```bash
 curl http://localhost:8000/api/v1/video/jobs/JOB_ID \
@@ -134,7 +134,8 @@ curl http://localhost:8000/api/v1/video/jobs/JOB_ID \
 ### Cấu hình & Triển khai
 - [🚀 Deployment Workflow](docs/deployment-workflow.md) — Luồng deploy lên VPS
 - [🌐 Cấu hình Cloudflare Tunnel](docs/cloudflare-tunnel-setup.md) — Public API qua domain
-- [💾 Cấu hình Storage (Local)](docs/storage-setup.md) — Lưu trữ video output trên VPS
+- [💾 Cấu hình Storage (R2)](docs/storage-setup.md) — Lưu trữ video output trên Cloudflare R2
+- [🛠️ Operations Runbook](docs/operations-runbook.md) — Preflight, deploy, health check
 
 ### Quy trình làm việc
 - [🔀 Git Workflow](docs/git-workflow.md) — Gitflow branching (prod/staging/dev)

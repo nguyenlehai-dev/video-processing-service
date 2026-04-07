@@ -36,6 +36,20 @@ services:
     networks:
       - app-net
 
+  # ===== Frontend Service =====
+  frontend:
+    build:
+      context: ../../frontend/video-processing-service-fe
+      dockerfile: Dockerfile
+    container_name: video-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    networks:
+      - app-net
+    depends_on:
+      - api
+
 volumes:
   video-temp:
 

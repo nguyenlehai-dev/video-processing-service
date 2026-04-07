@@ -189,8 +189,8 @@ curl -X POST https://api.xyz.com/api/v1/video/cut \
 ```json
 {
   "job_id": "job-uuid-here",
-  "message": "Video cut processing",
-  "status": "processing"
+  "message": "Video cut job accepted",
+  "status": "pending"
 }
 ```
 
@@ -379,6 +379,26 @@ curl -X POST https://api.xyz.com/api/v1/video/resize \
 
 ## 4. Theo dõi Job
 
+Các endpoint video trả về ngay sau khi job được tạo. Sau đó client dùng `job_id` để poll trạng thái:
+
+```bash
+curl https://api.xyz.com/api/v1/video/jobs/JOB_ID \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+Ví dụ response khi hoàn tất:
+
+```json
+{
+  "id": "job-uuid-here",
+  "operation": "resize",
+  "status": "completed",
+  "progress": 100,
+  "output_url": "https://pub-xxx.r2.dev/output/job-uuid-here.mp4",
+  "output_filename": "resize_abcd1234.mp4"
+}
+```
+
 Mỗi request xử lý video sẽ trả về `job_id`. Dùng ID này để kiểm tra trạng thái.
 
 ### 4.1. Kiểm tra trạng thái 1 job
@@ -407,7 +427,7 @@ curl https://api.xyz.com/api/v1/video/jobs/JOB_ID \
   "operation": "cut",
   "status": "completed",
   "progress": 100.0,
-  "output_url": "/api/v1/video/download/job-uuid.mp4",
+  "output_url": "https://pub-xxx.r2.dev/output/job-uuid.mp4",
   "output_filename": "cut_job-uuid.mp4",
   "file_size": 1548000,
   "duration": 3.45,

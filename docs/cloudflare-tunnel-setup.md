@@ -25,11 +25,11 @@ Sau khi tạo tunnel, ở tab **Public Hostname**:
 | **Subdomain** | `api` (hoặc tên tùy chọn) |
 | **Domain** | Chọn domain của bạn (VD: `xyz.com`) |
 | **Type** | `HTTP` |
-| **URL** | `video-api:8000` |
+| **URL** | `http://api:8000` |
 
-> **Lưu ý:** URL dùng **tên container Docker** (`video-api`) chứ không phải `localhost`, vì `cloudflared` chạy trong Docker network cùng với API container.
+> **Lưu ý:** URL nên dùng **tên service Docker Compose** (`api`) chứ không phải `localhost`, vì `cloudflared` chạy trong Docker network cùng với API container.
 
-Kết quả: `https://api.xyz.com` → Cloudflare → tunnel → container `video-api:8000`
+Kết quả: `https://api.xyz.com` → Cloudflare → tunnel → service `api:8000`
 
 ---
 
@@ -100,7 +100,7 @@ sudo docker compose logs cloudflared
 ### Truy cập domain bị lỗi 502
 
 1. Kiểm tra API container còn chạy không: `sudo docker compose ps`
-2. Kiểm tra Public Hostname URL trên Cloudflare Dashboard phải là `http://video-api:8000` (không phải `localhost`)
+2. Kiểm tra Public Hostname URL trên Cloudflare Dashboard phải là `http://api:8000` (không phải `localhost`)
 3. Đảm bảo cả 2 container cùng network (`app-net`)
 
 ---
@@ -121,7 +121,7 @@ Internet (HTTPS)
 │  VPS Docker (app-net network)       │
 │                                     │
 │  ┌─────────────┐  ┌──────────────┐ │
-│  │ cloudflared  │→│ video-api    │ │
+│  │ cloudflared  │→│ api          │ │
 │  │ (tunnel)     │  │ :8000        │ │
 │  └─────────────┘  └──────────────┘ │
 └─────────────────────────────────────┘

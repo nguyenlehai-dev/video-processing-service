@@ -232,18 +232,21 @@ git pull origin prod
 - [ ] Đã cài Docker + Docker Compose
 - [ ] Clone repo từ GitHub
 - [ ] Tạo file `.env` với credentials thật:
-  - [ ] `SECRET_KEY` (random string)
-  - [ ] `R2_ACCOUNT_ID`
-  - [ ] `R2_ACCESS_KEY_ID`  
-  - [ ] `R2_SECRET_ACCESS_KEY`
-  - [ ] `R2_BUCKET_NAME`
-  - [ ] `R2_PUBLIC_URL`
-  - [ ] `CLOUDFLARE_TUNNEL_TOKEN`
+- [ ] `SECRET_KEY` (random string)
+- [ ] `R2_ACCOUNT_ID`
+- [ ] `R2_ACCESS_KEY_ID`
+- [ ] `R2_SECRET_ACCESS_KEY`
+- [ ] `R2_BUCKET_NAME`
+- [ ] `R2_PUBLIC_URL`
+- [ ] `R2_REGION=auto`
+- [ ] `STORAGE_BACKEND=r2`
+- [ ] `CLOUDFLARE_TUNNEL_TOKEN`
 - [ ] Tạo Cloudflare Tunnel trên Zero Trust Dashboard
 - [ ] Cấu hình Public Hostname → `http://api:8000`
 - [ ] `docker compose up -d --build`
 - [ ] Truy cập `https://api.xyz.com/docs` thấy Swagger UI
-- [ ] Test upload video → nhận được R2 URL
+- [ ] Test upload video → nhận job `pending` rồi `completed`
+- [ ] `output_url` trả về là URL public trên R2
 
 ---
 
@@ -259,5 +262,4 @@ docker compose up -d --build
 docker compose logs -f api     # kiểm tra logs
 # Done! ✅
 ```
-
 

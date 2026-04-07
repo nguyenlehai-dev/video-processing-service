@@ -1,8 +1,10 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 
 
 class UserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     email: str
     username: str
@@ -10,9 +12,6 @@ class UserResponse(BaseModel):
     is_active: bool
     is_admin: bool
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class UserUpdateRequest(BaseModel):

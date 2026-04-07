@@ -1,128 +1,85 @@
-# Hướng dẫn cấu hình Storage (Local)
+# Hướng dẫn cấu hình Storage (Cloudflare R2)
 
-Video output được lưu trữ **trực tiếp trên VPS** thay vì dịch vụ cloud (R2/S3). Đơn giản, miễn phí, không cần tài khoản bên thứ 3.
+Video output được upload lên **Cloudflare R2** sau khi FFmpeg xử lý xong. Đây là backend storage mặc định cho môi trường production.
 
 ---
 
 ## Cách hoạt động
 
 ```
-Upload video → FFmpeg xử lý → Lưu vào data/output/ → Download qua API
+Upload video -> Job pending -> FFmpeg xử lý nền -> Upload output lên R2 -> Trả public URL
 ```
 
 ### Luồng chi tiết
 
 ```
-1. Client upload video lên API  → POST /api/v1/video/cut
-2. FFmpeg xử lý video           → Lưu file tạm vào /tmp/video-processing/
-3. Copy output vào data/output/  → Xoá file tạm
-4. Trả về download URL           → /api/v1/video/download/<filename>
-5. Client download kết quả       → GET /api/v1/video/download/<filename>
+1. Client upload video lên API             -> POST /api/v1/video/*
+2. API lưu file tạm vào /tmp/video-processing/
+3. API tạo job trạng thái pending
+4. Background task chạy FFmpeg
+5. Output được upload lên bucket R2
+6. Job completed + trả output_url public
 ```
 
 ---
 
-## Cấu trúc thư mục trên VPS
+## Biến môi trường bắt buộc
 
-```
-~/video-processing-service/
-├── data/
-│   ├── app.db                    ← SQLite database
-│   └── output/                   ← ⭐ Video output files
-│       ├── <job-id>.mp4
-│       ├── <job-id>.mp3
-│       └── ...
-└── docker-compose.yml
+```env
+R2_ACCOUNT_ID=your-account-id
+R2_ACCESS_KEY_ID=your-access-key-id
+R2_SECRET_ACCESS_KEY=your-secret-access-key
+R2_BUCKET_NAME=video-output
+R2_PUBLIC_URL=https://pub-xxx.r2.dev
+R2_REGION=auto
+STORAGE_BACKEND=r2
 ```
 
-> **Quan trọng:** Thư mục `data/` được mount vào Docker container qua volume, nên dữ liệu **tồn tại vĩnh viễn** kể cả khi restart/rebuild container.
+> Nếu để `STORAGE_BACKEND=auto`, service sẽ tự dùng R2 khi đủ credentials, nếu thiếu sẽ fallback sang local storage để tiện phát triển.
 
 ---
 
-## Download file output
+## Tạo bucket và public URL
 
-Sau khi xử lý xong, job sẽ trả về `output_url`:
+1. Vào Cloudflare Dashboard
+2. Mở **R2 Object Storage**
+3. Tạo bucket, ví dụ `video-output`
+4. Bật public access hoặc custom domain cho bucket
+5. Copy public base URL vào `R2_PUBLIC_URL`
+
+Ví dụ output URL sau khi xử lý:
 
 ```json
 {
   "id": "abc-123",
   "status": "completed",
-  "output_url": "/api/v1/video/download/abc-123.mp4"
+  "output_url": "https://pub-xxx.r2.dev/output/abc-123.mp4"
 }
 ```
 
-Download:
-
-```bash
-# Download bằng curl
-curl -O https://api.xyz.com/api/v1/video/download/abc-123.mp4
-
-# Hoặc mở trong trình duyệt:
-# https://api.xyz.com/api/v1/video/download/abc-123.mp4
-```
-
-> Download endpoint **không cần API Key** — file được truy cập qua URL trực tiếp sau khi có link.
-
 ---
 
-## Quản lý dung lượng
-
-### Kiểm tra dung lượng
+## Kiểm tra nhanh
 
 ```bash
-# Tổng dung lượng output
-du -sh ~/video-processing-service/data/output/
-
-# Chi tiết từng file
-ls -lhS ~/video-processing-service/data/output/
-
-# Dung lượng ổ đĩa VPS
-df -h /
+curl https://api.xyz.com/api/v1/video/jobs/JOB_ID \
+  -H "X-API-Key: YOUR_API_KEY"
 ```
 
-### Dọn dẹp file cũ
+Kết quả mong đợi:
 
-```bash
-# Xoá file output cũ hơn 30 ngày
-find ~/video-processing-service/data/output/ -type f -mtime +30 -delete
-
-# Xoá file output cũ hơn 7 ngày
-find ~/video-processing-service/data/output/ -type f -mtime +7 -delete
-```
-
-### Tự động dọn dẹp (Cron job)
-
-```bash
-# Mở crontab
-crontab -e
-
-# Thêm dòng: xoá file hơn 30 ngày, chạy mỗi ngày lúc 3h sáng
-0 3 * * * find /root/video-processing-service/data/output/ -type f -mtime +30 -delete
+```json
+{
+  "id": "job-id",
+  "status": "completed",
+  "output_url": "https://pub-xxx.r2.dev/output/job-id.mp4"
+}
 ```
 
 ---
 
-## So sánh với Cloud Storage
+## Ghi chú
 
-| Tiêu chí | Local Storage (hiện tại) | Cloudflare R2 |
-|----------|------------------------|---------------|
-| **Chi phí** | Miễn phí | $0.015/GB/tháng |
-| **Setup** | Không cần cấu hình | Cần API token, bucket |
-| **Tốc độ download** | Phụ thuộc VPS bandwidth | CDN toàn cầu |
-| **Dung lượng** | Phụ thuộc ổ VPS (828GB free) | Không giới hạn |
-| **Backup** | Tự backup | Tự động replicate |
-| **Phù hợp** | Dự án nhỏ-vừa | Dự án lớn, nhiều user |
-
-> 💡 Với VPS có 828GB free, local storage hoàn toàn đủ cho dự án hiện tại.
-
----
-
-## Nâng cấp lên Cloud Storage (tương lai)
-
-Nếu sau này cần, chỉ cần:
-
-1. Tạo file `storage_service.py` mới kết nối R2/S3
-2. Cập nhật `.env` với credentials
-3. Rebuild Docker container
-
-Code đã được thiết kế để dễ dàng swap storage backend.
+- Download endpoint nội bộ `/api/v1/video/download/{filename}` vẫn được giữ lại để hỗ trợ local fallback.
+- Bucket R2 nên cấu hình lifecycle policy nếu muốn tự dọn file cũ.
+- Với production, nên dùng custom domain thay vì URL mặc định `r2.dev`.

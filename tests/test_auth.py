@@ -1,15 +1,7 @@
-import pytest
-from fastapi.testclient import TestClient
-from app.main import app
-
-
-client = TestClient(app)
-
-
 class TestAuth:
     """Test authentication endpoints."""
 
-    def test_register(self):
+    def test_register(self, client):
         response = client.post("/api/v1/auth/register", json={
             "email": "test@example.com",
             "username": "testuser",
@@ -21,7 +13,7 @@ class TestAuth:
         assert data["email"] == "test@example.com"
         assert data["username"] == "testuser"
 
-    def test_login(self):
+    def test_login(self, client):
         # Register first
         client.post("/api/v1/auth/register", json={
             "email": "login@example.com",
@@ -38,14 +30,19 @@ class TestAuth:
         assert "access_token" in data
         assert "refresh_token" in data
 
-    def test_login_wrong_password(self):
+    def test_login_wrong_password(self, client):
+        client.post("/api/v1/auth/register", json={
+            "email": "login@example.com",
+            "username": "loginuser",
+            "password": "testpass123",
+        })
         response = client.post("/api/v1/auth/login", json={
             "email": "login@example.com",
             "password": "wrongpass",
         })
         assert response.status_code == 401
 
-    def test_me(self):
+    def test_me(self, client):
         # Register and login
         client.post("/api/v1/auth/register", json={
             "email": "me@example.com",
@@ -69,12 +66,12 @@ class TestAuth:
 class TestHealthCheck:
     """Test health check endpoint."""
 
-    def test_health(self):
+    def test_health(self, client):
         response = client.get("/health")
         assert response.status_code == 200
         assert response.json()["status"] == "healthy"
 
-    def test_root(self):
+    def test_root(self, client):
         response = client.get("/")
         assert response.status_code == 200
         assert "service" in response.json()
