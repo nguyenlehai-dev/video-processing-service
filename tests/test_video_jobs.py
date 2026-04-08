@@ -107,6 +107,7 @@ def test_merge_job_returns_thumbnail_url_after_completion(client, monkeypatch):
         return SimpleNamespace(returncode=0, stderr="", stdout="")
 
     monkeypatch.setattr("app.services.video_service._has_audio", lambda _path: True)
+    monkeypatch.setattr("app.services.video_service._get_video_duration", lambda _path: 12.34)
     monkeypatch.setattr("app.services.video_service.subprocess.run", fake_run)
 
     response = client.post(
@@ -132,6 +133,7 @@ def test_merge_job_returns_thumbnail_url_after_completion(client, monkeypatch):
     assert payload["status"] == "completed"
     assert payload["thumbnail_url"].startswith("/api/v1/video/download/")
     assert payload["has_audio"] is True
+    assert payload["output_duration"] == 12.34
     assert any("-movflags" in cmd and "+faststart" in cmd for cmd in ffmpeg_commands)
     assert any("-f" in cmd and "concat" in cmd for cmd in ffmpeg_commands)
 

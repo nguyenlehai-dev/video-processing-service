@@ -228,6 +228,7 @@ def _complete_job(
     job.completed_at = datetime.now(timezone.utc)
     job.duration = time.time() - started_at
     params = dict(job.params or {})
+    params["output_duration"] = _get_video_duration(output_path)
     params["has_audio"] = _has_audio(output_path)
     job.params = params
 

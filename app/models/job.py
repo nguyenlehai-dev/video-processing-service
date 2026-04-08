@@ -36,3 +36,9 @@ class Job(Base):
         if isinstance(self.params, dict):
             return self.params.get("has_audio")
         return None
+
+    @property
+    def output_duration(self) -> float | None:
+        if isinstance(self.params, dict):
+            return self.params.get("output_duration")
+        return None

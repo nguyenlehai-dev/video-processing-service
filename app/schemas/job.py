@@ -12,6 +12,7 @@ class JobResponse(BaseModel):
     output_url: str | None = None
     thumbnail_url: str | None = None
     has_audio: bool | None = None
+    output_duration: float | None = None
     output_filename: str | None = None
     error_message: str | None = None
     file_size: float | None = None
