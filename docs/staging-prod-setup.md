@@ -59,6 +59,7 @@ chmod +x scripts/*.sh
   - `/home/vpsroot/projects/frontend/video-processing-service-fe-staging`
   - `/home/vpsroot/projects/frontend/video-processing-service-fe-prod`
 - Các thư mục `-staging` và `-prod` luôn được reset sạch về `origin/staging` hoặc `origin/prod` trước khi deploy
+- Frontend staging và prod dùng cùng `Dockerfile`; khác biệt môi trường nằm ở branch và compose, không nằm ở file build riêng ngoài branch
 
 ## Mapping domain
 
