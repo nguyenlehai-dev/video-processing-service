@@ -35,7 +35,18 @@ Ngoài ra workflow cũng push thêm tag dạng `sha-<commit>`.
 
 Hai file này đang được tạo theo cấu hình đang chạy hiện tại để phục vụ migration.
 
-## Trình tự chuyển đổi an toàn
+## Trạng thái hiện tại
+
+- `test.plxeditor.com` đã chạy bằng:
+  - `ghcr.io/nguyenlehai-dev/video-processing-service-api:staging`
+  - `ghcr.io/nguyenlehai-dev/video-processing-service-fe:staging`
+- `plxeditor.com` đã chạy bằng:
+  - `ghcr.io/nguyenlehai-dev/video-processing-service-api:prod`
+  - `ghcr.io/nguyenlehai-dev/video-processing-service-fe:prod`
+- Dữ liệu SQLite của staging/prod đã được copy sang `deploy/<env>/data`
+- Script image deploy hiện ghi lại SHA đã deploy vào `deploy/<env>/*.sha`
+
+## Trình tự vận hành chuẩn
 
 1. Push code lên `staging`
 2. Chờ GitHub Actions build và push image `staging`
@@ -46,11 +57,9 @@ Hai file này đang được tạo theo cấu hình đang chạy hiện tại đ
 6. Chờ image `prod` được build
 7. Chạy:
    - `scripts/deploy-image-prod.sh`
-8. Chỉ sau khi prod ổn định mới xóa worktree:
-   - frontend: `-staging`, `-prod`
-   - backend: `-staging`, `-prod`
+8. Xác nhận auto deploy hoặc xóa cleanup target cũ nếu không còn cần
 
 ## Lưu ý
 
-- Hiện production và staging live vẫn đang dùng flow cũ dựa trên worktree.
-- Bộ file image-based mới chỉ là đường migration song song, chưa thay thế live flow.
+- Worktree cũ không còn cần cho runtime.
+- Nếu còn lưu để tham chiếu ngắn hạn, không được dùng chúng để sửa code hay deploy.
