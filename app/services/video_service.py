@@ -227,12 +227,14 @@ def _complete_job(
     job.progress = 100.0
     job.completed_at = datetime.now(timezone.utc)
     job.duration = time.time() - started_at
+    params = dict(job.params or {})
+    params["has_audio"] = _has_audio(output_path)
+    job.params = params
 
     if thumbnail_path and os.path.exists(thumbnail_path):
         thumbnail_object_name = f"output/{job.id}_thumbnail.jpg"
         try:
             thumbnail_url = upload_file_to_storage(thumbnail_path, thumbnail_object_name)
-            params = dict(job.params or {})
             params["thumbnail_url"] = thumbnail_url
             job.params = params
         except Exception as exc:

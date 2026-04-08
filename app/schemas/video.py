@@ -42,3 +42,4 @@ class VideoProcessResponse(BaseModel):
     message: str
     status: str = "pending"
     thumbnail_url: str | None = None
+    has_audio: bool | None = None

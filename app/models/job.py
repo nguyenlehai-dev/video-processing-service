@@ -30,3 +30,9 @@ class Job(Base):
         if isinstance(self.params, dict):
             return self.params.get("thumbnail_url")
         return None
+
+    @property
+    def has_audio(self) -> bool | None:
+        if isinstance(self.params, dict):
+            return self.params.get("has_audio")
+        return None

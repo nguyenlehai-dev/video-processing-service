@@ -131,6 +131,7 @@ def test_merge_job_returns_thumbnail_url_after_completion(client, monkeypatch):
     payload = job_response.json()
     assert payload["status"] == "completed"
     assert payload["thumbnail_url"].startswith("/api/v1/video/download/")
+    assert payload["has_audio"] is True
     assert any("-movflags" in cmd and "+faststart" in cmd for cmd in ffmpeg_commands)
     assert any("-f" in cmd and "concat" in cmd for cmd in ffmpeg_commands)
 
