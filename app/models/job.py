@@ -24,3 +24,9 @@ class Job(Base):
 
     # Relationships
     user = relationship("User", back_populates="jobs")
+
+    @property
+    def thumbnail_url(self) -> str | None:
+        if isinstance(self.params, dict):
+            return self.params.get("thumbnail_url")
+        return None

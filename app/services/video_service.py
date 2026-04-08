@@ -121,6 +121,24 @@ def _cleanup_files(paths: list[str]):
             logger.warning(f"Failed to clean up {path}: {exc}")
 
 
+def _generate_thumbnail(input_path: str) -> str | None:
+    """Generate a JPEG thumbnail from a processed video."""
+    thumbnail_path = _get_temp_path(".jpg")
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", input_path,
+        "-vf", "thumbnail,scale=640:-1",
+        "-frames:v", "1",
+        thumbnail_path,
+    ]
+    success, error = _run_ffmpeg(cmd)
+    if success and os.path.exists(thumbnail_path):
+        return thumbnail_path
+    logger.warning("Thumbnail generation failed for %s: %s", input_path, error)
+    _cleanup_files([thumbnail_path])
+    return None
+
+
 def create_processing_job(
     db: Session,
     operation: str,
@@ -158,7 +176,13 @@ def _fail_job(db: Session, job: Job, error_message: str, started_at: float):
     db.commit()
 
 
-def _complete_job(db: Session, job: Job, output_path: str, started_at: float):
+def _complete_job(
+    db: Session,
+    job: Job,
+    output_path: str,
+    started_at: float,
+    thumbnail_path: str | None = None,
+):
     file_size = os.path.getsize(output_path)
     ext = os.path.splitext(output_path)[1]
     object_name = f"output/{job.id}{ext}"
@@ -176,6 +200,17 @@ def _complete_job(db: Session, job: Job, output_path: str, started_at: float):
     job.progress = 100.0
     job.completed_at = datetime.now(timezone.utc)
     job.duration = time.time() - started_at
+
+    if thumbnail_path and os.path.exists(thumbnail_path):
+        thumbnail_object_name = f"output/{job.id}_thumbnail.jpg"
+        try:
+            thumbnail_url = upload_file_to_storage(thumbnail_path, thumbnail_object_name)
+            params = dict(job.params or {})
+            params["thumbnail_url"] = thumbnail_url
+            job.params = params
+        except Exception as exc:
+            logger.warning("Failed to upload thumbnail for job %s: %s", job.id, exc)
+
     db.commit()
 
     # Cleanup Input files from Cloudflare R2 securely
@@ -231,11 +266,12 @@ def _download_input_file(key: str, local_path: str, storage_backend: str) -> Non
 def _process_job(
     job_id: str,
     input_keys: list[str],
-    runner: Callable[[list[str]], tuple[bool, str, str | None]],
+    runner: Callable[[list[str]], tuple[bool, str, str | None, str | None]],
 ):
     db = SessionLocal()
     started_at = time.time()
     output_path: str | None = None
+    thumbnail_path: str | None = None
     local_input_paths = []
 
     try:
@@ -255,14 +291,14 @@ def _process_job(
             _download_input_file(key, local_path, storage_backend)
             local_input_paths.append(local_path)
 
-        success, error, output_path = runner(local_input_paths)
+        success, error, output_path, thumbnail_path = runner(local_input_paths)
         if not success or not output_path:
             _fail_job(db, job, error or "Unknown processing error", started_at)
             return
 
         job.progress = 90.0
         db.commit()
-        _complete_job(db, job, output_path, started_at)
+        _complete_job(db, job, output_path, started_at, thumbnail_path=thumbnail_path)
     except Exception as exc:
         logger.exception(f"Unexpected error while processing job {job_id}: {exc}")
         job = db.query(Job).filter(Job.id == job_id).first()
@@ -272,6 +308,8 @@ def _process_job(
         cleanup_paths = list(local_input_paths)
         if output_path:
             cleanup_paths.append(output_path)
+        if thumbnail_path:
+            cleanup_paths.append(thumbnail_path)
         _cleanup_files(cleanup_paths)
         db.close()
 
@@ -294,7 +332,7 @@ def process_cut_job(job_id: str, object_key: str, start_time: str, end_time: str
             output_path,
         ]
         success, error = _run_ffmpeg(cmd)
-        return success, error, output_path
+        return success, error, output_path, None
 
     _process_job(job_id, [object_key], runner)
 
@@ -335,7 +373,8 @@ def process_merge_job(job_id: str, object_keys: list[str]):
         ]
         success, error = _run_ffmpeg(cmd)
         _cleanup_files(intermediate_files)
-        return success, error, output_path
+        thumbnail_path = _generate_thumbnail(output_path) if success else None
+        return success, error, output_path, thumbnail_path
 
     _process_job(job_id, object_keys, runner)
 
@@ -368,7 +407,7 @@ def process_add_audio_job(job_id: str, video_key: str, audio_key: str, replace: 
                 output_path,
             ]
         success, error = _run_ffmpeg(cmd)
-        return success, error, output_path
+        return success, error, output_path, None
 
     _process_job(job_id, [video_key, audio_key], runner)
 
@@ -377,7 +416,7 @@ def process_extract_audio_job(job_id: str, object_key: str, audio_format: str):
     def runner(local_paths):
         input_path = local_paths[0]
         if not _has_audio(input_path):
-            return False, "Input video does not contain an audio stream to extract.", None
+            return False, "Input video does not contain an audio stream to extract.", None, None
 
         codec_map = {
             "mp3": ("libmp3lame", ".mp3"),
@@ -395,7 +434,7 @@ def process_extract_audio_job(job_id: str, object_key: str, audio_format: str):
             output_path,
         ]
         success, error = _run_ffmpeg(cmd)
-        return success, error, output_path
+        return success, error, output_path, None
 
     _process_job(job_id, [object_key], runner)
 
@@ -437,7 +476,7 @@ def process_speed_job(job_id: str, object_key: str, speed: float, adjust_audio: 
             ]
 
         success, error = _run_ffmpeg(cmd)
-        return success, error, output_path
+        return success, error, output_path, None
 
     _process_job(job_id, [object_key], runner)
 
@@ -454,7 +493,7 @@ def process_crop_job(job_id: str, object_key: str, width: int, height: int, x: i
             output_path,
         ]
         success, error = _run_ffmpeg(cmd)
-        return success, error, output_path
+        return success, error, output_path, None
 
     _process_job(job_id, [object_key], runner)
 
@@ -485,7 +524,7 @@ def process_resize_job(
             output_path,
         ]
         success, error = _run_ffmpeg(cmd)
-        return success, error, output_path
+        return success, error, output_path, None
 
     _process_job(job_id, [object_key], runner)
 
@@ -504,7 +543,7 @@ def process_extract_frames_job(
         errors = []
 
         if not first_frame and not last_frame and timestamp is None:
-            return False, "At least one of first_frame, last_frame, or timestamp is required.", None
+            return False, "At least one of first_frame, last_frame, or timestamp is required.", None, None
 
         duration = _get_video_duration(input_path) if last_frame else 0.0
 
@@ -538,7 +577,7 @@ def process_extract_frames_job(
                 errors.append(f"Timestamp frame error: {err}")
 
         if not extracted_files:
-            return False, f"Failed to extract any frames. Errors: {'; '.join(errors)}", None
+            return False, f"Failed to extract any frames. Errors: {'; '.join(errors)}", None, None
 
         # Build ZIP Archive
         try:
@@ -546,11 +585,11 @@ def process_extract_frames_job(
                 for arcname, fpath in extracted_files:
                     zipf.write(fpath, arcname)
         except Exception as e:
-            return False, f"Failed to create ZIP archive: {str(e)}", None
+            return False, f"Failed to create ZIP archive: {str(e)}", None, None
         finally:
             for _, fpath in extracted_files:
                 _cleanup_files([fpath])
 
-        return True, "", output_zip_path
+        return True, "", output_zip_path, None
 
     _process_job(job_id, [object_key], runner)

@@ -95,6 +95,40 @@ def test_legacy_status_endpoint_returns_same_job_payload(client, monkeypatch):
     assert job_response.json()["status"] == "completed"
 
 
+def test_merge_job_returns_thumbnail_url_after_completion(client, monkeypatch):
+    api_key = _create_user_and_api_key(client)
+
+    def fake_run(cmd, capture_output, text, timeout):
+        output_path = Path(cmd[-1])
+        output_path.write_bytes(b"generated-artifact")
+        return SimpleNamespace(returncode=0, stderr="", stdout="")
+
+    monkeypatch.setattr("app.services.video_service.subprocess.run", fake_run)
+
+    response = client.post(
+        "/api/v1/video/merge",
+        headers={"X-API-Key": api_key},
+        files=[
+            ("videos", ("part1.mp4", b"fake-video-1", "video/mp4")),
+            ("videos", ("part2.mp4", b"fake-video-2", "video/mp4")),
+        ],
+    )
+
+    assert response.status_code == 200
+    assert response.json()["thumbnail_url"] is None
+
+    job_id = response.json()["job_id"]
+    job_response = client.get(
+        f"/api/v1/video/jobs/{job_id}",
+        headers={"X-API-Key": api_key},
+    )
+
+    assert job_response.status_code == 200
+    payload = job_response.json()
+    assert payload["status"] == "completed"
+    assert payload["thumbnail_url"].startswith("/api/v1/video/download/")
+
+
 def test_large_upload_is_rejected(client, monkeypatch):
     api_key = _create_user_and_api_key(client)
     monkeypatch.setattr("app.api.v1.video.settings.MAX_UPLOAD_SIZE_MB", 1)

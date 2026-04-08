@@ -41,3 +41,4 @@ class VideoProcessResponse(BaseModel):
     job_id: str
     message: str
     status: str = "pending"
+    thumbnail_url: str | None = None
