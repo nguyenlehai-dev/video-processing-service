@@ -2,6 +2,7 @@
 
 ## Mục tiêu
 
+- Chỉ có **1 source gốc** để phát triển backend/frontend
 - `test.plxeditor.com` chạy môi trường `staging`
 - `plxeditor.com` chạy môi trường `prod`
 - Server tự theo dõi nhánh `staging` và `prod`, khi có commit mới sẽ tự pull và `docker compose up -d --build`
@@ -53,6 +54,7 @@ chmod +x scripts/*.sh
 - Chỉ chỉnh code ở:
   - `/home/vpsroot/projects/backend/video-processing-service`
   - `/home/vpsroot/projects/frontend/video-processing-service-fe`
+- Hai thư mục trên là source of truth duy nhất
 - Không chỉnh tay trong:
   - `/home/vpsroot/projects/backend/video-processing-service-staging`
   - `/home/vpsroot/projects/backend/video-processing-service-prod`
