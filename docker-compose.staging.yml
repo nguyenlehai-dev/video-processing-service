@@ -1,0 +1,47 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: video-api-staging
+    ports:
+      - "8010:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - video-temp-staging:/tmp/video-processing
+    restart: unless-stopped
+    networks:
+      shared-app-net:
+        aliases:
+          - api-staging
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ../../frontend/video-processing-service-fe-staging
+      dockerfile: Dockerfile.staging
+    container_name: video-frontend-staging
+    restart: unless-stopped
+    ports:
+      - "3010:80"
+    networks:
+      shared-app-net:
+        aliases:
+          - frontend-staging
+    depends_on:
+      - api
+
+volumes:
+  video-temp-staging:
+
+networks:
+  shared-app-net:
+    external: true
+    name: video-processing-service_app-net

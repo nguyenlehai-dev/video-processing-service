@@ -166,6 +166,10 @@ curl -X DELETE https://api.xyz.com/api/v1/api-keys/KEY_ID \
 ## 3. Xử lý Video
 
 > Tất cả endpoint video đều dùng **API Key** qua header `X-API-Key`.
+>
+> 🚀 **TÍNH NĂNG MỚI (URL Bypass):** Thay vì upload file trực tiếp, hệ thống giờ đây đã hỗ trợ xử lý trực tiếp từ đường dẫn bằng cách thay tham số truyền file thành tham số truyền URL. Hỗ trợ mọi Cloudflare R2, CDN hoặc link external bất kỳ.
+> - Thay vì dùng `video=@file.mp4`, hãy dùng `video_url=https://...`
+> - Tương tự với `audio` -> `audio_url`, và `videos` -> `video_urls`.
 
 ### 3.1. Cắt video (Cut)
 
@@ -181,7 +185,7 @@ curl -X POST https://api.xyz.com/api/v1/video/cut \
 
 | Parameter | Type | Bắt buộc | Mô tả |
 |-----------|------|----------|-------|
-| `video` | File | ✅ | File video cần cắt |
+| `video` / `video_url` | File / String | ✅ (chọn 1) | File video upload HOẶC link direct URL |
 | `start_time` | String | ✅ | Thời gian bắt đầu (`HH:MM:SS` hoặc giây) |
 | `end_time` | String | ✅ | Thời gian kết thúc |
 
@@ -210,7 +214,7 @@ curl -X POST https://api.xyz.com/api/v1/video/merge \
 
 | Parameter | Type | Bắt buộc | Mô tả |
 |-----------|------|----------|-------|
-| `videos` | Files | ✅ | Tối thiểu 2 file video (theo thứ tự nối) |
+| `videos` / `video_urls` | Files / Strings | ✅ (chọn 1) | Tối thiểu 2 files HOẶC 2 direct URLs để nối |
 
 ---
 
@@ -236,8 +240,8 @@ curl -X POST https://api.xyz.com/api/v1/video/add-audio \
 
 | Parameter | Type | Bắt buộc | Mô tả |
 |-----------|------|----------|-------|
-| `video` | File | ✅ | File video |
-| `audio` | File | ✅ | File audio cần ghép |
+| `video` / `video_url` | File / String | ✅ (chọn 1) | File video upload HOẶC link direct URL |
+| `audio` / `audio_url` | File / String | ✅ (chọn 1) | File audio upload HOẶC link direct URL |
 | `replace` | Boolean | ❌ | `true` = thay thế, `false` = trộn (mặc định: `false`) |
 
 ---
@@ -255,7 +259,7 @@ curl -X POST https://api.xyz.com/api/v1/video/extract-audio \
 
 | Parameter | Type | Bắt buộc | Mô tả |
 |-----------|------|----------|-------|
-| `video` | File | ✅ | File video |
+| `video` / `video_url` | File / String | ✅ (chọn 1) | File video upload HOẶC link direct URL |
 | `format` | String | ❌ | Format output: `mp3`, `wav`, `aac`, `flac` (mặc định: `mp3`) |
 
 ---
@@ -281,7 +285,7 @@ curl -X POST https://api.xyz.com/api/v1/video/speed \
 
 | Parameter | Type | Bắt buộc | Mô tả |
 |-----------|------|----------|-------|
-| `video` | File | ✅ | File video |
+| `video` / `video_url` | File / String | ✅ (chọn 1) | File video upload HOẶC link direct URL |
 | `speed` | Float | ❌ | Hệ số tốc độ: `0.25` - `4.0` (mặc định: `1.0`) |
 | `adjust_audio` | Boolean | ❌ | Điều chỉnh audio theo tốc độ (mặc định: `true`) |
 
@@ -314,7 +318,7 @@ curl -X POST https://api.xyz.com/api/v1/video/crop \
 
 | Parameter | Type | Bắt buộc | Mô tả |
 |-----------|------|----------|-------|
-| `video` | File | ✅ | File video |
+| `video` / `video_url` | File / String | ✅ (chọn 1) | File video upload HOẶC link direct URL |
 | `width` | Integer | ✅ | Chiều rộng vùng crop (pixel) |
 | `height` | Integer | ✅ | Chiều cao vùng crop (pixel) |
 | `x` | Integer | ❌ | Offset ngang từ trái (mặc định: `0`) |
@@ -358,7 +362,7 @@ curl -X POST https://api.xyz.com/api/v1/video/resize \
 
 | Parameter | Type | Bắt buộc | Mô tả |
 |-----------|------|----------|-------|
-| `video` | File | ✅ | File video |
+| `video` / `video_url` | File / String | ✅ (chọn 1) | File video upload HOẶC link direct URL |
 | `width` | Integer | ✅ | Chiều rộng mới (pixel) |
 | `height` | Integer | ✅ | Chiều cao mới (pixel) |
 | `maintain_aspect` | Boolean | ❌ | Giữ tỷ lệ khung hình (mặc định: `true`) |
@@ -539,3 +543,59 @@ curl -X DELETE https://api.xyz.com/api/v1/users/USER_ID \
 | Access token TTL | 30 phút | `ACCESS_TOKEN_EXPIRE_MINUTES` |
 | Refresh token TTL | 7 ngày | `REFRESH_TOKEN_EXPIRE_DAYS` |
 | FFmpeg timeout | 10 phút | Hardcode trong `video_service.py` |
+
+---
+
+## 6. Các Mẫu Code Tích Hợp (Client Snippets)
+
+Dưới đây là các ví dụ tích hợp API cho ứng dụng gọi (Client) khi sử dụng tính năng **URL Bypass** (truyền link trực tiếp mà không cần gửi file).
+
+### Ví dụ: Gọi API Gộp Video (Merge) bằng URL
+
+Để gửi mảng `video_urls` qua chuẩn `Form-Data`, bạn cần truyền dưới dạng danh sách các cặp khóa-giá trị trùng nhau *(list of tuples)*.
+
+#### cURL (Terminal)
+```bash
+curl -X POST "https://api.xyz.com/api/v1/video/merge" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -F "video_urls=https://v15-kling.klingai.com/video1.mp4" \
+  -F "video_urls=https://cdn.plenxai.com/video2.mp4"
+```
+
+#### Python (Thư viện `requests`)
+```python
+import requests
+
+url = "https://api.xyz.com/api/v1/video/merge"
+headers = {"X-API-Key": "YOUR_API_KEY"}
+
+# Gửi array form-data dùng list of tuples
+payload = [
+    ("video_urls", "https://v15-kling.klingai.com/video1.mp4"),
+    ("video_urls", "https://cdn.plenxai.com/video2.mp4")
+]
+
+response = requests.post(url, headers=headers, data=payload)
+print(response.json())
+```
+
+#### Python (Thư viện `httpx` - Khuyên dùng)
+```python
+import httpx
+import asyncio
+
+async def merge_videos():
+    url = "https://api.xyz.com/api/v1/video/merge"
+    headers = {"X-API-Key": "YOUR_API_KEY"}
+    
+    payload = [
+        ("video_urls", "https://v15-kling.klingai.com/video1.mp4"),
+        ("video_urls", "https://cdn.plenxai.com/video2.mp4")
+    ]
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, headers=headers, data=payload)
+        print(response.json())
+
+asyncio.run(merge_videos())
+```

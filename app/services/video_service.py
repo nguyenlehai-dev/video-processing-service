@@ -1,5 +1,6 @@
 import logging
 import os
+import shutil
 import subprocess
 import time
 import uuid
@@ -8,11 +9,18 @@ from datetime import datetime, timezone
 from typing import Callable
 
 from sqlalchemy.orm import Session
+from botocore.exceptions import ClientError
 
 from app.config import get_settings
 from app.db.session import SessionLocal
 from app.models.job import Job
-from app.services.storage_service import upload_file_to_storage, _get_r2_client, delete_file_from_r2
+from app.services.storage_service import (
+    upload_file_to_storage,
+    _get_r2_client,
+    delete_file_from_storage,
+    get_file_path,
+    get_storage_backend,
+)
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -65,6 +73,42 @@ def _get_video_duration(input_path: str) -> float:
     except Exception as exc:
         logger.warning(f"Could not read duration for {input_path}: {exc}")
     return 0.0
+
+
+def _has_audio(input_path: str) -> bool:
+    """Use ffprobe to check if video has an audio stream."""
+    try:
+        cmd = [
+            "ffprobe", "-v", "error",
+            "-select_streams", "a",
+            "-show_entries", "stream=codec_type",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            input_path
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        return "audio" in result.stdout.lower()
+    except Exception as exc:
+        logger.warning(f"Could not check audio for {input_path}: {exc}")
+    return False
+
+
+def _add_silent_audio(input_path: str) -> str | None:
+    """Add a silent audio track to a video without audio."""
+    output_path = _get_temp_path(".mp4")
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", input_path,
+        "-f", "lavfi",
+        "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+        "-c:v", "copy",
+        "-c:a", "aac",
+        "-shortest",
+        output_path
+    ]
+    success, error = _run_ffmpeg(cmd)
+    if success and os.path.exists(output_path):
+        return output_path
+    return None
 
 
 def _cleanup_files(paths: list[str]):
@@ -139,7 +183,48 @@ def _complete_job(db: Session, job: Job, output_path: str, started_at: float):
         for f in job.input_files:
             object_key = f.get("object_key")
             if object_key:
-                delete_file_from_r2(object_key)
+                if f.get("managed") is False:
+                    continue
+                if object_key.startswith("http://") or object_key.startswith("https://"):
+                    continue
+                if object_key.startswith("output/"):
+                    continue
+                delete_file_from_storage(object_key)
+
+
+def _copy_from_local_storage(key: str, local_path: str) -> None:
+    source_path = get_file_path(os.path.basename(key))
+    if not source_path:
+        raise FileNotFoundError(f"Input object not found in local storage: {key}")
+    shutil.copy2(source_path, local_path)
+
+
+def _download_input_file(key: str, local_path: str, storage_backend: str) -> None:
+    if key.startswith("http://") or key.startswith("https://"):
+        import httpx
+
+        try:
+            with httpx.stream("GET", key, follow_redirects=True) as response:
+                response.raise_for_status()
+                with open(local_path, "wb") as target:
+                    for chunk in response.iter_bytes(chunk_size=8192):
+                        target.write(chunk)
+            return
+        except Exception as exc:
+            logger.error("Failed to download external url %s: %s", key, exc)
+            raise RuntimeError(f"Failed to download external url: {key}") from exc
+
+    if storage_backend == "r2":
+        try:
+            _get_r2_client().download_file(settings.R2_BUCKET_NAME, key, local_path)
+            return
+        except ClientError as exc:
+            error_code = exc.response.get("Error", {}).get("Code")
+            if error_code in {"404", "NoSuchKey", "NotFound"}:
+                raise FileNotFoundError(f"Input object not found in R2 storage: {key}") from exc
+            raise RuntimeError(f"Failed to download input object from R2: {key}") from exc
+
+    _copy_from_local_storage(key, local_path)
 
 
 
@@ -161,12 +246,13 @@ def _process_job(
 
         _start_job(db, job)
         
-        # Download files from R2 first!
-        s3 = _get_r2_client()
+        # Download files from the active storage backend or an external URL first.
+        storage_backend = get_storage_backend()
         for key in input_keys:
-            ext = os.path.splitext(key)[1]
+            ext = os.path.splitext(key.split("?")[0])[1] or ".mp4"
             local_path = _get_temp_path(ext)
-            s3.download_file(settings.R2_BUCKET_NAME, key, local_path)
+
+            _download_input_file(key, local_path, storage_backend)
             local_input_paths.append(local_path)
 
         success, error, output_path = runner(local_input_paths)
@@ -215,10 +301,29 @@ def process_cut_job(job_id: str, object_key: str, start_time: str, end_time: str
 
 def process_merge_job(job_id: str, object_keys: list[str]):
     def runner(local_paths):
+        # Prepare paths with audio
+        prepared_paths = []
+        intermediate_files = []
+        
+        for path in local_paths:
+            if not _has_audio(path):
+                logger.info(f"Video {path} has no audio. Adding silent audio track.")
+                new_path = _add_silent_audio(path)
+                if new_path:
+                    prepared_paths.append(new_path)
+                    intermediate_files.append(new_path)
+                else:
+                    prepared_paths.append(path)
+            else:
+                prepared_paths.append(path)
+
         concat_path = _get_temp_path(".txt")
+        intermediate_files.append(concat_path)
+        
         with open(concat_path, "w", encoding="utf-8") as file:
-            for path in local_paths:
+            for path in prepared_paths:
                 file.write(f"file '{path}'\n")
+                
         output_path = _get_temp_path(".mp4")
         cmd = [
             "ffmpeg", "-y",
@@ -229,7 +334,7 @@ def process_merge_job(job_id: str, object_keys: list[str]):
             output_path,
         ]
         success, error = _run_ffmpeg(cmd)
-        _cleanup_files([concat_path])
+        _cleanup_files(intermediate_files)
         return success, error, output_path
 
     _process_job(job_id, object_keys, runner)
@@ -271,6 +376,9 @@ def process_add_audio_job(job_id: str, video_key: str, audio_key: str, replace: 
 def process_extract_audio_job(job_id: str, object_key: str, audio_format: str):
     def runner(local_paths):
         input_path = local_paths[0]
+        if not _has_audio(input_path):
+            return False, "Input video does not contain an audio stream to extract.", None
+
         codec_map = {
             "mp3": ("libmp3lame", ".mp3"),
             "wav": ("pcm_s16le", ".wav"),
@@ -297,8 +405,13 @@ def process_speed_job(job_id: str, object_key: str, speed: float, adjust_audio: 
         input_path = local_paths[0]
         output_path = _get_temp_path(".mp4")
         video_filter = f"setpts={1 / speed}*PTS"
+        has_audio = _has_audio(input_path)
+        effective_adjust_audio = adjust_audio and has_audio
 
-        if adjust_audio:
+        if adjust_audio and not has_audio:
+            logger.info("Video %s has no audio stream. Applying speed change to video only.", input_path)
+
+        if effective_adjust_audio:
             audio_filter = f"atempo={speed}"
             if speed > 2.0:
                 audio_filter = f"atempo=2.0,atempo={speed / 2.0}"
@@ -389,6 +502,9 @@ def process_extract_frames_job(
         output_zip_path = _get_temp_path(".zip")
         extracted_files = []
         errors = []
+
+        if not first_frame and not last_frame and timestamp is None:
+            return False, "At least one of first_frame, last_frame, or timestamp is required.", None
 
         duration = _get_video_duration(input_path) if last_frame else 0.0
 

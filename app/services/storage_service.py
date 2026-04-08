@@ -4,6 +4,7 @@ import logging
 import mimetypes
 import uuid
 import boto3
+import httpx
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 from app.config import get_settings
@@ -218,6 +219,33 @@ def delete_file_from_storage(object_name: str) -> bool:
     except Exception as e:
         logger.error(f"Failed to delete file: {e}")
         return False
+
+
+def storage_object_exists(object_name: str) -> bool:
+    """Check whether an input reference currently exists."""
+    if object_name.startswith("http://") or object_name.startswith("https://"):
+        try:
+            response = httpx.head(object_name, follow_redirects=True, timeout=10.0)
+            if response.status_code == 405:
+                response = httpx.get(
+                    object_name,
+                    headers={"Range": "bytes=0-0"},
+                    follow_redirects=True,
+                    timeout=10.0,
+                )
+            return response.status_code < 400
+        except Exception:
+            return False
+
+    backend = get_storage_backend()
+    if backend == "r2":
+        try:
+            _get_r2_client().head_object(Bucket=settings.R2_BUCKET_NAME, Key=object_name)
+            return True
+        except (ClientError, BotoCoreError):
+            return False
+
+    return get_file_path(os.path.basename(object_name)) is not None
 
 
 def get_file_path(filename: str) -> str | None:

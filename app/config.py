@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     # Upload
     MAX_UPLOAD_SIZE_MB: int = 500
     TEMP_DIR: str = "/tmp/video-processing"
+    ALLOWED_DOMAIN_WHITELIST: str = "cdn.plxeditor.com,plenxai.com,r2.dev"
 
     model_config = SettingsConfigDict(
         env_file=".env",
