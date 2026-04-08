@@ -97,12 +97,16 @@ def test_legacy_status_endpoint_returns_same_job_payload(client, monkeypatch):
 
 def test_merge_job_returns_thumbnail_url_after_completion(client, monkeypatch):
     api_key = _create_user_and_api_key(client)
+    ffmpeg_commands = []
 
     def fake_run(cmd, capture_output, text, timeout):
+        if cmd[0] == "ffmpeg":
+            ffmpeg_commands.append(cmd)
         output_path = Path(cmd[-1])
         output_path.write_bytes(b"generated-artifact")
         return SimpleNamespace(returncode=0, stderr="", stdout="")
 
+    monkeypatch.setattr("app.services.video_service._has_audio", lambda _path: True)
     monkeypatch.setattr("app.services.video_service.subprocess.run", fake_run)
 
     response = client.post(
@@ -127,6 +131,8 @@ def test_merge_job_returns_thumbnail_url_after_completion(client, monkeypatch):
     payload = job_response.json()
     assert payload["status"] == "completed"
     assert payload["thumbnail_url"].startswith("/api/v1/video/download/")
+    assert any("-movflags" in cmd and "+faststart" in cmd for cmd in ffmpeg_commands)
+    assert any("-f" in cmd and "concat" in cmd for cmd in ffmpeg_commands)
 
 
 def test_large_upload_is_rejected(client, monkeypatch):

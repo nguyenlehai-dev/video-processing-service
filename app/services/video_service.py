@@ -111,6 +111,33 @@ def _add_silent_audio(input_path: str) -> str | None:
     return None
 
 
+def _normalize_merge_input(input_path: str) -> str | None:
+    """Re-encode a merge segment to a consistent video/audio profile."""
+    output_path = _get_temp_path(".mp4")
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", input_path,
+        "-map", "0:v:0",
+        "-map", "0:a:0?",
+        "-c:v", "libx264",
+        "-crf", "18",
+        "-preset", "fast",
+        "-pix_fmt", "yuv420p",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        "-ar", "44100",
+        "-ac", "2",
+        "-movflags", "+faststart",
+        output_path,
+    ]
+    success, error = _run_ffmpeg(cmd)
+    if success and os.path.exists(output_path):
+        return output_path
+    logger.warning("Failed to normalize merge input %s: %s", input_path, error)
+    _cleanup_files([output_path])
+    return None
+
+
 def _cleanup_files(paths: list[str]):
     """Remove temporary files."""
     for path in paths:
@@ -339,7 +366,7 @@ def process_cut_job(job_id: str, object_key: str, start_time: str, end_time: str
 
 def process_merge_job(job_id: str, object_keys: list[str]):
     def runner(local_paths):
-        # Prepare paths with audio
+        # Normalize every segment so concat keeps both video and audio reliably.
         prepared_paths = []
         intermediate_files = []
         
@@ -355,11 +382,20 @@ def process_merge_job(job_id: str, object_keys: list[str]):
             else:
                 prepared_paths.append(path)
 
+        normalized_paths = []
+        for path in prepared_paths:
+            normalized_path = _normalize_merge_input(path)
+            if not normalized_path:
+                _cleanup_files(intermediate_files)
+                return False, "Failed to normalize one of the merge inputs.", None, None
+            normalized_paths.append(normalized_path)
+            intermediate_files.append(normalized_path)
+
         concat_path = _get_temp_path(".txt")
         intermediate_files.append(concat_path)
         
         with open(concat_path, "w", encoding="utf-8") as file:
-            for path in prepared_paths:
+            for path in normalized_paths:
                 file.write(f"file '{path}'\n")
                 
         output_path = _get_temp_path(".mp4")
