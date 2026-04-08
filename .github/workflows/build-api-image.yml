@@ -1,0 +1,68 @@
+name: Build API Image
+
+on:
+  push:
+    branches:
+      - staging
+      - prod
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Optional image tag override"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/nguyenlehai-dev/video-processing-service-api
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image tags
+        id: vars
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && -n "${{ github.event.inputs.image_tag }}" ]]; then
+            TAG="${{ github.event.inputs.image_tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+          echo "sha_tag=sha-${GITHUB_SHA::12}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ steps.vars.outputs.tag }}
+            type=raw,value=${{ steps.vars.outputs.sha_tag }}
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

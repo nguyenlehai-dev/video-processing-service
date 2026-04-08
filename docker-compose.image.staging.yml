@@ -1,0 +1,44 @@
+services:
+  api:
+    image: ghcr.io/nguyenlehai-dev/video-processing-service-api:${BACKEND_IMAGE_TAG:-staging}
+    container_name: video-api-staging
+    ports:
+      - "8010:8000"
+    env_file:
+      - ${APP_ENV_FILE:-/home/vpsroot/projects/backend/video-processing-service/deploy/staging/.env}
+    volumes:
+      - ${APP_DATA_DIR:-/home/vpsroot/projects/backend/video-processing-service/deploy/staging/data}:/app/data
+      - video-temp-staging:/tmp/video-processing
+    restart: unless-stopped
+    networks:
+      shared-app-net:
+        aliases:
+          - api-staging
+          - video-api-staging
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    image: ghcr.io/nguyenlehai-dev/video-processing-service-fe:${FRONTEND_IMAGE_TAG:-staging}
+    container_name: video-frontend-staging
+    restart: unless-stopped
+    ports:
+      - "3010:80"
+    networks:
+      shared-app-net:
+        aliases:
+          - frontend-staging
+    depends_on:
+      - api
+
+volumes:
+  video-temp-staging:
+
+networks:
+  shared-app-net:
+    external: true
+    name: video-processing-service_app-net
