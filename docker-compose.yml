@@ -1,20 +1,17 @@
 services:
-  # ===== Video Processing API =====
   api:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    container_name: video-api
+    container_name: ${APP_CONTAINER_NAME:-video-api}
     ports:
-      - "8000:8000"
+      - "${APP_PORT:-8000}:8000"
     env_file:
       - .env
     volumes:
-      - ./data:/app/data               # SQLite DB + video output (persistent)
-      - video-temp:/tmp/video-processing # Temp files for processing
+      - ./data:/app/data
+      - video-temp:/tmp/video-processing
     restart: unless-stopped
-    networks:
-      - app-net
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
@@ -22,37 +19,5 @@ services:
       retries: 3
       start_period: 10s
 
-  # ===== Cloudflare Tunnel =====
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: video-tunnel
-    command: tunnel --no-autoupdate run
-    environment:
-      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
-    restart: unless-stopped
-    depends_on:
-      api:
-        condition: service_healthy
-    networks:
-      - app-net
-
-  # ===== Frontend Service =====
-  frontend:
-    build:
-      context: ../../frontend/video-processing-service-fe
-      dockerfile: Dockerfile
-    container_name: video-frontend
-    restart: unless-stopped
-    ports:
-      - "3000:80"
-    networks:
-      - app-net
-    depends_on:
-      - api
-
 volumes:
   video-temp:
-
-networks:
-  app-net:
-    driver: bridge
