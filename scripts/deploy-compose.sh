@@ -15,5 +15,8 @@ if [[ -f "${ROOT_DIR}/.env" ]]; then
 fi
 
 cd "${ROOT_DIR}"
+if [[ -n "${APP_CONTAINER_NAME:-}" ]] && docker ps -a --format '{{.Names}}' | grep -Fxq "${APP_CONTAINER_NAME}"; then
+  docker rm -f "${APP_CONTAINER_NAME}"
+fi
 docker compose -p "${PROJECT_NAME}" up -d --build
 docker compose -p "${PROJECT_NAME}" ps
