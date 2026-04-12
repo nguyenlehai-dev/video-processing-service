@@ -1,0 +1,45 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - staging
+      - prod
+  workflow_dispatch:
+
+jobs:
+  deploy-staging:
+    if: github.ref_name == 'staging'
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - gateway-dev
+    steps:
+      - name: Deploy backend on VM dev
+        run: |
+          set -euo pipefail
+          cd /home/vpsroot/apps/video-processing-staging/be
+          git fetch origin
+          git checkout staging
+          git reset --hard origin/staging
+          chmod +x scripts/deploy-compose.sh
+          ./scripts/deploy-compose.sh
+
+  deploy-prod:
+    if: github.ref_name == 'prod'
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - gateway-prod
+    steps:
+      - name: Deploy backend on VM pro
+        run: |
+          set -euo pipefail
+          cd /home/vpsroot/apps/video-processing-prod/be
+          git fetch origin
+          git checkout prod
+          git reset --hard origin/prod
+          chmod +x scripts/deploy-compose.sh
+          ./scripts/deploy-compose.sh
