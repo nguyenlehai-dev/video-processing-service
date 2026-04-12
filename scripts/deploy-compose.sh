@@ -2,7 +2,6 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PROJECT_NAME="${COMPOSE_PROJECT_NAME:-video-processing-be}"
 
 if [[ -f "${ROOT_DIR}/.env" ]]; then
   while IFS='=' read -r key value; do
@@ -13,6 +12,8 @@ if [[ -f "${ROOT_DIR}/.env" ]]; then
     esac
   done < <(grep -E '^(APP_PORT|APP_CONTAINER_NAME|COMPOSE_PROJECT_NAME)=' "${ROOT_DIR}/.env" || true)
 fi
+
+PROJECT_NAME="${COMPOSE_PROJECT_NAME:-video-processing-be}"
 
 cd "${ROOT_DIR}"
 if [[ -n "${APP_CONTAINER_NAME:-}" ]] && docker ps -a --format '{{.Names}}' | grep -Fxq "${APP_CONTAINER_NAME}"; then
