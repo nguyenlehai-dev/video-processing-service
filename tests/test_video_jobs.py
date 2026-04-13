@@ -217,6 +217,20 @@ def test_url_whitelist_matches_hostname_not_substring(client, monkeypatch):
     assert "Domain not in whitelist" in response.json()["detail"]
 
 
+def test_jobs_init_accepts_relative_download_path(client):
+    api_key = _create_user_and_api_key(client)
+
+    response = client.post(
+        "/api/v1/video/jobs/init",
+        headers={"X-API-Key": api_key},
+        json={"tool_name": "merge", "filenames": ["/api/v1/video/download/test-job.mp4"]},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["object_keys"][0] == "test-job.mp4"
+
+
 def test_retry_job_does_not_precheck_external_url_inputs(client):
     api_key = _create_user_and_api_key(client)
 

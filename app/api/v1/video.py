@@ -40,13 +40,34 @@ def _normalize_hostname(url: str) -> str:
     return urllib.parse.urlparse(url).netloc.split("@")[-1].split(":")[0].lower()
 
 
+def _is_local_download_path(url: str) -> bool:
+    parsed = urllib.parse.urlparse(url)
+    return parsed.path.startswith("/api/v1/video/download/")
+
+
 def _is_domain_allowed(url: str) -> bool:
+    if _is_local_download_path(url):
+        return True
+
     whitelist = [domain.strip().lower() for domain in settings.ALLOWED_DOMAIN_WHITELIST.split(",") if domain.strip()]
     if "*" in whitelist or not whitelist:
         return True
 
     hostname = _normalize_hostname(url)
     return any(hostname == domain or hostname.endswith(f".{domain}") for domain in whitelist)
+
+
+def _resolve_external_object_key(url: str) -> str:
+    parsed = urllib.parse.urlparse(url)
+
+    if _is_local_download_path(url):
+        return os.path.basename(parsed.path)
+
+    r2_domain = urllib.parse.urlparse(settings.R2_PUBLIC_URL).netloc
+    if parsed.netloc == r2_domain:
+        return parsed.path.lstrip("/")
+
+    return url
 
 
 def _build_local_upload_token(job_id: str, object_key: str) -> str:
@@ -72,15 +93,9 @@ async def init_upload_job(
     
     for filename in request.filenames:
         if filename.startswith("http://") or filename.startswith("https://"):
-            parsed = urllib.parse.urlparse(filename)
             if _is_domain_allowed(filename):
-                r2_domain = urllib.parse.urlparse(settings.R2_PUBLIC_URL).netloc
-                
-                if parsed.netloc == r2_domain:
-                    object_key = parsed.path.lstrip("/")
-                else:
-                    object_key = filename
-                    
+                object_key = _resolve_external_object_key(filename)
+
                 upload_urls.append("") 
                 object_keys.append(object_key)
                 
@@ -218,15 +233,9 @@ async def resolve_job_inputs(
     
     async def process_single_input(url_val: str | None, file_val: UploadFile | None):
         if url_val:
-            parsed = urllib.parse.urlparse(url_val)
             if _is_domain_allowed(url_val):
-                r2_domain = urllib.parse.urlparse(settings.R2_PUBLIC_URL).netloc
-                
-                if parsed.netloc == r2_domain:
-                    object_key = parsed.path.lstrip("/")
-                else:
-                    object_key = url_val
-                    
+                object_key = _resolve_external_object_key(url_val)
+
                 filename_clean = url_val.split("/")[-1].split("?")[0] or "video.mp4"
                 return {
                     "filename": filename_clean,
