@@ -158,7 +158,10 @@ def _upload_file_to_local(file_path: str, object_name: str) -> str:
     file_size = os.path.getsize(dest_path)
 
     logger.info(f"Saved {file_path} to {dest_path} ({file_size} bytes)")
-    return f"/api/v1/video/download/{filename}"
+    download_path = f"/api/v1/video/download/{filename}"
+    if settings.PUBLIC_BASE_URL:
+        return f"{settings.PUBLIC_BASE_URL.rstrip('/')}{download_path}"
+    return download_path
 
 
 def generate_presigned_put_url(object_name: str, expiration: int = 3600) -> str | None:

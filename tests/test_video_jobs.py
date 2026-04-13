@@ -35,6 +35,7 @@ def _create_user_and_api_key(client):
 
 def test_resize_job_runs_in_background_and_persists_result(client, monkeypatch):
     api_key = _create_user_and_api_key(client)
+    monkeypatch.setattr("app.services.storage_service.settings.PUBLIC_BASE_URL", "https://plxeditor.com")
 
     def fake_run(cmd, capture_output, text, timeout):
         output_path = Path(cmd[-1])
@@ -61,7 +62,7 @@ def test_resize_job_runs_in_background_and_persists_result(client, monkeypatch):
     assert job_response.status_code == 200
     job = job_response.json()
     assert job["status"] == "completed"
-    assert job["output_url"].startswith("/api/v1/video/download/")
+    assert job["output_url"].startswith("https://plxeditor.com/api/v1/video/download/")
     assert job["file_size"] == len(b"processed-video")
 
 
@@ -97,6 +98,7 @@ def test_legacy_status_endpoint_returns_same_job_payload(client, monkeypatch):
 
 def test_merge_job_returns_thumbnail_url_after_completion(client, monkeypatch):
     api_key = _create_user_and_api_key(client)
+    monkeypatch.setattr("app.services.storage_service.settings.PUBLIC_BASE_URL", "https://plxeditor.com")
     ffmpeg_commands = []
 
     def fake_run(cmd, capture_output, text, timeout):
@@ -131,7 +133,7 @@ def test_merge_job_returns_thumbnail_url_after_completion(client, monkeypatch):
     assert job_response.status_code == 200
     payload = job_response.json()
     assert payload["status"] == "completed"
-    assert payload["thumbnail_url"].startswith("/api/v1/video/download/")
+    assert payload["thumbnail_url"].startswith("https://plxeditor.com/api/v1/video/download/")
     assert payload["has_audio"] is True
     assert payload["output_duration"] == 12.34
     assert any("-movflags" in cmd and "+faststart" in cmd for cmd in ffmpeg_commands)
