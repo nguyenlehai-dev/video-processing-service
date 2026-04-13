@@ -31,6 +31,7 @@ class Settings(BaseSettings):
 
     # Storage
     STORAGE_BACKEND: str = "auto"  # auto, r2, local
+    PUBLIC_BASE_URL: str = ""  # e.g. https://plxeditor.com for local download fallback
 
     # Upload
     MAX_UPLOAD_SIZE_MB: int = 500

@@ -47,6 +47,18 @@ def test_validate_storage_configuration_falls_back_to_local(monkeypatch):
     assert storage_service.validate_storage_configuration() == "local"
 
 
+def test_upload_file_to_storage_returns_full_public_url_for_local_fallback(monkeypatch, tmp_path):
+    source_file = tmp_path / "video.mp4"
+    source_file.write_bytes(b"video-bytes")
+
+    monkeypatch.setattr(storage_service.settings, "STORAGE_BACKEND", "local")
+    monkeypatch.setattr(storage_service.settings, "PUBLIC_BASE_URL", "https://plxeditor.com")
+
+    output_url = storage_service.upload_file_to_storage(str(source_file), "output/test-job.mp4")
+
+    assert output_url == "https://plxeditor.com/api/v1/video/download/test-job.mp4"
+
+
 def test_upload_file_to_storage_raises_when_r2_upload_fails(monkeypatch, tmp_path):
     source_file = tmp_path / "video.mp4"
     source_file.write_bytes(b"video-bytes")
