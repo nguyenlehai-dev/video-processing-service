@@ -18,7 +18,7 @@ async def get_current_user(
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
+            detail="Token khong hop le hoac da het han",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -26,27 +26,27 @@ async def get_current_user(
     if token_type != "access":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token type. Use access token.",
+            detail="Loai token khong hop le. Vui long dung access token.",
         )
 
     user_id = payload.get("sub")
     if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload",
+            detail="Du lieu token khong hop le",
         )
 
     user = user_service.get_user_by_id(db, user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
+            detail="Khong tim thay nguoi dung",
         )
 
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is deactivated",
+            detail="Tai khoan nguoi dung da bi vo hieu hoa",
         )
 
     return user
@@ -59,7 +59,7 @@ async def get_current_admin(
     if not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required",
+            detail="Yeu cau quyen quan tri vien",
         )
     return current_user
 
@@ -73,14 +73,14 @@ async def get_user_from_api_key(
     if not api_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or revoked API key",
+            detail="API key khong hop le hoac da bi thu hoi",
         )
 
     user = api_key.user
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is deactivated",
+            detail="Tai khoan nguoi dung da bi vo hieu hoa",
         )
 
     return user
