@@ -1,145 +1,121 @@
-# VM Separation Architecture - Video Processing Service
+# Video Processing VM Separation Architecture
 
-## Mục tiêu
+## Muc tieu
 
-Tài liệu này mô tả mô hình tách môi trường giống gatewave/getwave:
+Tach rieng `staging` va `prod` thanh 2 Ubuntu VM doc lap:
 
-- `VM1` chạy `staging`
-- `VM2` chạy `prod`
-- backend và frontend đều tách riêng theo môi trường
-- source repo và runtime path không trộn lẫn nhau
+- `VM dev` chi chay `video-processing-staging`
+- `VM pro` chi chay `video-processing-prod`
+- public ingress va Cloudflare Tunnel tap trung tai `VM pro`
 
-## Sơ đồ tổng thể
+## Hien trang thuc te
 
-```text
-                    GitHub
-          ┌───────────┴───────────┐
-          │                       │
-          ▼                       ▼
-   branch staging            branch prod
-          │                       │
-          ▼                       ▼
-      VM1 / Staging            VM2 / Production
-   test.plxeditor.com            plxeditor.com
-```
+### VM dev
 
-## VM1 - Staging
+Hostname: `dev`  
+IP noi bo: `192.168.100.67`
 
-### Vai trò
-
-- Dùng để QA
-- Demo nội bộ hoặc cho khách xem trước
-- Kiểm tra release trước khi promote production
-
-### Runtime path
+Runtime dang chay:
 
 - Backend: `/home/vpsroot/apps/video-processing-staging/be`
 - Frontend: `/home/vpsroot/apps/video-processing-staging/fe`
+- Domain: `test.plxeditor.com`
 
-### Runtime config
+Ports:
 
-- Backend branch: `staging`
-- Frontend branch: `staging`
-- Backend port: `18082`
-- Frontend port: `8081`
-- Backend container: `video-api-staging`
-- Frontend container: `video-frontend-staging`
-- Public domain: `test.plxeditor.com`
+- `18082` -> Video backend staging
+- `8081` -> Video frontend staging
 
-## VM2 - Production
+Runner:
 
-### Vai trò
+- `video-be-dev`
+- `video-fe-dev`
 
-- Môi trường chạy thật cho người dùng
-- Chỉ nhận code đã qua staging
+Cloudflared:
 
-### Runtime path
+- khong can public tunnel rieng tren `VM dev`
+- traffic public `test.plxeditor.com` di qua `VM pro`
+
+### VM pro
+
+Hostname: `pro`  
+IP noi bo: `192.168.100.68`
+
+Runtime dang chay:
 
 - Backend: `/home/vpsroot/apps/video-processing-prod/be`
 - Frontend: `/home/vpsroot/apps/video-processing-prod/fe`
+- Domain: `plxeditor.com`
 
-### Runtime config
+Ports:
 
-- Backend branch: `prod`
-- Frontend branch: `prod`
-- Backend port: `18081`
-- Frontend port: `8082`
-- Backend container: `video-api-prod`
-- Frontend container: `video-frontend-prod`
-- Public domain: `plxeditor.com`
+- `28081` -> Video backend prod
+- `28082` -> Video frontend prod
 
-## Source Repo Chung
+Runner:
 
-### Backend source
+- `video-be-prod`
+- `video-fe-prod`
+
+Cloudflared:
+
+- chay bang `systemd`
+- service: `cloudflared.service`
+
+## Domain routing
+
+Public domains:
+
+- `test.plxeditor.com`
+- `plxeditor.com`
+
+Current ingress model:
+
+- Cloudflare/Cloudflared vao `VM pro`
+- Nginx Proxy Manager tren `VM pro` route:
+  - `test.plxeditor.com` -> `192.168.100.67:8081`
+  - `plxeditor.com` -> `192.168.100.68:28082`
+
+## Source va runtime
+
+Source repos:
 
 - `/home/vpsroot/projects/backend/video-processing-service`
-
-### Frontend source
-
 - `/home/vpsroot/projects/frontend/video-processing-service-fe`
 
-Source repo là nơi:
+Runtime deploy:
 
-- viết code
-- tạo feature branch
-- tạo PR
-- review
-- merge `dev -> staging -> prod`
+- `/home/vpsroot/apps/video-processing-staging`
+- `/home/vpsroot/apps/video-processing-prod`
 
-Runtime path trong `apps` là nơi:
+Git flow:
 
-- checkout branch deploy
-- lưu `.env`
-- chạy container
-- rollback / restart
+- `staging` deploy vao `VM dev`
+- `prod` deploy vao `VM pro`
 
-## Release Flow
+## Van hanh chuan
 
-### Lên Staging
+1. Lam viec va push branch `staging`
+2. Verify `https://test.plxeditor.com/`
+3. Promote `staging -> prod`
+4. Verify `https://plxeditor.com/`
 
-1. Merge feature vào `dev`
-2. Promote `dev -> staging`
-3. Trên VM1:
+## Health checks nhanh
+
+### VM dev
 
 ```bash
-cd /home/vpsroot/apps/video-processing-staging/be && git pull origin staging && ./scripts/deploy-compose.sh
-cd /home/vpsroot/apps/video-processing-staging/fe && git pull origin staging && ./scripts/deploy-compose.sh
+docker ps
+curl -s http://127.0.0.1:18082/health
+curl -I -s https://test.plxeditor.com/
+systemctl list-units --type=service --all | egrep 'video|runner'
 ```
 
-### Lên Production
-
-1. Xác nhận staging ổn định
-2. Promote `staging -> prod`
-3. Trên VM2:
+### VM pro
 
 ```bash
-cd /home/vpsroot/apps/video-processing-prod/be && git pull origin prod && ./scripts/deploy-compose.sh
-cd /home/vpsroot/apps/video-processing-prod/fe && git pull origin prod && ./scripts/deploy-compose.sh
+docker ps
+curl -s http://127.0.0.1:28081/health
+curl -I -s https://plxeditor.com/
+systemctl status cloudflared --no-pager
 ```
-
-## Reverse Proxy
-
-### Staging
-
-- `test.plxeditor.com` -> frontend staging
-- `/api`, `/health`, `/docs`, `/redoc`, `/openapi.json` -> backend staging
-
-### Production
-
-- `plxeditor.com` -> frontend production
-- `/api`, `/health`, `/docs`, `/redoc`, `/openapi.json` -> backend production
-
-## Ghi chú triển khai
-
-- Path chuẩn hiện tại là:
-  - `/home/vpsroot/apps/video-processing-staging`
-  - `/home/vpsroot/apps/video-processing-prod`
-- Legacy path vẫn được giữ dưới dạng symlink tương thích:
-  - `/home/vpsroot/apps/gateway-staging`
-  - `/home/vpsroot/apps/gateway-prod`
-- Dự án đang chạy bên trong các path này là `video-processing-service`
-- Nếu sau này đổi path vật lý lần nữa, cần cập nhật đồng bộ:
-  - nginx / NPM
-  - scripts deploy
-  - backup jobs
-  - monitoring

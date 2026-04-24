@@ -48,12 +48,12 @@ def _run_ffmpeg(cmd: list[str]) -> tuple[bool, str]:
             timeout=600,
         )
         if result.returncode != 0:
-            error = result.stderr or "Unknown FFmpeg error"
+            error = result.stderr or "Loi FFmpeg khong xac dinh"
             logger.error(f"FFmpeg error: {error}")
             return False, error
         return True, ""
     except subprocess.TimeoutExpired:
-        return False, "FFmpeg processing timed out (10 minutes)"
+        return False, "FFmpeg xu ly qua thoi gian cho (10 phut)"
     except Exception as exc:
         return False, str(exc)
 
@@ -217,7 +217,7 @@ def _complete_job(
         download_url = upload_file_to_storage(output_path, object_name)
     except Exception as exc:
         logger.error(f"Storage upload failed for job {job.id}: {exc}")
-        _fail_job(db, job, f"Failed to upload output file to storage: {exc}", started_at)
+        _fail_job(db, job, f"Khong the tai file dau ra len bo nho luu tru: {exc}", started_at)
         return
 
     job.status = "completed"
@@ -277,7 +277,7 @@ def _download_input_file(key: str, local_path: str, storage_backend: str) -> Non
             return
         except Exception as exc:
             logger.error("Failed to download external url %s: %s", key, exc)
-            raise RuntimeError(f"Failed to download external url: {key}") from exc
+            raise RuntimeError(f"Khong the tai file tu URL ngoai: {key}") from exc
 
     if storage_backend == "r2":
         try:
@@ -287,7 +287,7 @@ def _download_input_file(key: str, local_path: str, storage_backend: str) -> Non
             error_code = exc.response.get("Error", {}).get("Code")
             if error_code in {"404", "NoSuchKey", "NotFound"}:
                 raise FileNotFoundError(f"Input object not found in R2 storage: {key}") from exc
-            raise RuntimeError(f"Failed to download input object from R2: {key}") from exc
+            raise RuntimeError(f"Khong the tai file dau vao tu R2: {key}") from exc
 
     _copy_from_local_storage(key, local_path)
 
@@ -323,7 +323,7 @@ def _process_job(
 
         success, error, output_path, thumbnail_path = runner(local_input_paths)
         if not success or not output_path:
-            _fail_job(db, job, error or "Unknown processing error", started_at)
+            _fail_job(db, job, error or "Loi xu ly khong xac dinh", started_at)
             return
 
         job.progress = 90.0
@@ -390,7 +390,7 @@ def process_merge_job(job_id: str, object_keys: list[str]):
             normalized_path = _normalize_merge_input(path)
             if not normalized_path:
                 _cleanup_files(intermediate_files)
-                return False, "Failed to normalize one of the merge inputs.", None, None
+                return False, "Khong the chuan hoa mot trong cac file dau vao de ghep.", None, None
             normalized_paths.append(normalized_path)
             intermediate_files.append(normalized_path)
 
@@ -455,7 +455,7 @@ def process_extract_audio_job(job_id: str, object_key: str, audio_format: str):
     def runner(local_paths):
         input_path = local_paths[0]
         if not _has_audio(input_path):
-            return False, "Input video does not contain an audio stream to extract.", None, None
+            return False, "Video dau vao khong co luong am thanh de tach.", None, None
 
         codec_map = {
             "mp3": ("libmp3lame", ".mp3"),
@@ -582,7 +582,7 @@ def process_extract_frames_job(
         errors = []
 
         if not first_frame and not last_frame and timestamp is None:
-            return False, "At least one of first_frame, last_frame, or timestamp is required.", None, None
+            return False, "Ban phai chon it nhat mot trong cac tuy chon: first_frame, last_frame hoac timestamp.", None, None
 
         duration = _get_video_duration(input_path) if last_frame else 0.0
 
@@ -593,7 +593,7 @@ def process_extract_frames_job(
             if success and os.path.exists(out_path):
                 extracted_files.append(("first_frame.jpg", out_path))
             else:
-                errors.append(f"First frame error: {err}")
+                errors.append(f"Loi lay frame dau tien: {err}")
 
         if last_frame and duration > 0:
             out_path = _get_temp_path(".jpg")
@@ -603,7 +603,7 @@ def process_extract_frames_job(
             if success and os.path.exists(out_path):
                 extracted_files.append(("last_frame.jpg", out_path))
             else:
-                errors.append(f"Last frame error: {err}")
+                errors.append(f"Loi lay frame cuoi cung: {err}")
 
         if timestamp is not None:
             out_path = _get_temp_path(".jpg")
@@ -613,10 +613,10 @@ def process_extract_frames_job(
             if success and os.path.exists(out_path):
                 extracted_files.append((f"frame_{timestamp}s.jpg", out_path))
             else:
-                errors.append(f"Timestamp frame error: {err}")
+                errors.append(f"Loi lay frame tai moc thoi gian: {err}")
 
         if not extracted_files:
-            return False, f"Failed to extract any frames. Errors: {'; '.join(errors)}", None, None
+            return False, f"Khong the trich xuat frame nao. Chi tiet loi: {'; '.join(errors)}", None, None
 
         # Build ZIP Archive
         try:
@@ -624,7 +624,7 @@ def process_extract_frames_job(
                 for arcname, fpath in extracted_files:
                     zipf.write(fpath, arcname)
         except Exception as e:
-            return False, f"Failed to create ZIP archive: {str(e)}", None, None
+            return False, f"Khong the tao file ZIP: {str(e)}", None, None
         finally:
             for _, fpath in extracted_files:
                 _cleanup_files([fpath])

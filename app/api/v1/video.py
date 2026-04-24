@@ -32,7 +32,7 @@ def _validate_upload_size(filename: str, size_bytes: int) -> None:
     if size_bytes > max_size_bytes:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File {filename} exceeds max upload size of {settings.MAX_UPLOAD_SIZE_MB} MB",
+            detail=f"File {filename} vuot qua gioi han {settings.MAX_UPLOAD_SIZE_MB} MB",
         )
 
 
@@ -109,7 +109,7 @@ async def init_upload_job(
                 )
                 continue
             else:
-                raise HTTPException(status_code=400, detail=f"Domain not in whitelist: {filename}")
+                raise HTTPException(status_code=400, detail=f"Domain khong nam trong danh sach cho phep: {filename}")
 
         ext = os.path.splitext(filename)[1] or ".mp4"
         object_key = f"input/{job_id}_{str(uuid.uuid4())[:8]}{ext}"
@@ -119,7 +119,7 @@ async def init_upload_job(
             presigned_url = _build_local_upload_url(job_id, len(input_files), object_key)
 
         if not presigned_url:
-            raise HTTPException(status_code=500, detail="Could not generate presigned URL for storage")
+            raise HTTPException(status_code=500, detail="Khong the tao presigned URL cho bo nho luu tru")
             
         upload_urls.append(presigned_url)
         object_keys.append(object_key)
@@ -132,7 +132,7 @@ async def init_upload_job(
         )
         
     if not input_files:
-        raise HTTPException(status_code=400, detail="Must provide at least one filename or file_url")
+        raise HTTPException(status_code=400, detail="Ban phai cung cap it nhat mot filename hoac file_url")
 
     job = Job(
         id=job_id,
@@ -155,7 +155,7 @@ async def update_job_progress(
 ):
     job = db.query(Job).filter(Job.id == job_id, Job.user_id == user.id).first()
     if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+        raise HTTPException(status_code=404, detail="Khong tim thay job")
     if job.status == "uploading":
         job.progress = float(request.progress)
         db.commit()
@@ -172,19 +172,19 @@ async def upload_job_file(
 ):
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+        raise HTTPException(status_code=404, detail="Khong tim thay job")
 
     if input_index < 0 or input_index >= len(job.input_files or []):
-        raise HTTPException(status_code=404, detail="Upload target not found")
+        raise HTTPException(status_code=404, detail="Khong tim thay dich tai len")
 
     input_file = job.input_files[input_index]
     object_key = input_file.get("object_key")
     if not object_key or input_file.get("managed") is not True:
-        raise HTTPException(status_code=400, detail="Upload target is not managed by this service")
+        raise HTTPException(status_code=400, detail="Dich tai len nay khong do dich vu quan ly")
 
     expected_token = _build_local_upload_token(job_id, object_key)
     if not hmac.compare_digest(token, expected_token):
-        raise HTTPException(status_code=403, detail="Invalid upload token")
+        raise HTTPException(status_code=403, detail="Token tai len khong hop le")
 
     filename = input_file.get("filename") or os.path.basename(object_key)
     ext = os.path.splitext(filename)[1] or ".mp4"
@@ -222,11 +222,11 @@ async def resolve_job_inputs(
     if job_id:
         job = db.query(Job).filter(Job.id == job_id, Job.user_id == user.id).first()
         if not job:
-            raise HTTPException(status_code=404, detail="Job not found")
+            raise HTTPException(status_code=404, detail="Khong tim thay job")
         return job
 
     if not any([video_url, video, audio_url, audio, video_urls, videos]):
-        raise HTTPException(status_code=400, detail="Must provide job_id, url parameters, or file uploads")
+        raise HTTPException(status_code=400, detail="Ban phai cung cap job_id, URL hoac file tai len")
 
     new_job_id = str(uuid.uuid4())
     input_files = []
@@ -243,7 +243,7 @@ async def resolve_job_inputs(
                     "managed": False,
                 }
             else:
-                raise HTTPException(status_code=400, detail=f"Domain not in whitelist: {url_val}")
+                raise HTTPException(status_code=400, detail=f"Domain khong nam trong danh sach cho phep: {url_val}")
         elif file_val:
             ext = os.path.splitext(file_val.filename)[1] or ".mp4"
             object_key = f"input/{new_job_id}_{str(uuid.uuid4())[:8]}{ext}"
@@ -286,7 +286,7 @@ async def resolve_job_inputs(
             if res: input_files.append(res)
             
     if not input_files:
-        raise HTTPException(status_code=400, detail="Could not resolve any input files")
+        raise HTTPException(status_code=400, detail="Khong the xac dinh file dau vao nao")
 
     job = Job(
         id=new_job_id,
@@ -351,7 +351,7 @@ async def add_audio(
 ):
     job = await resolve_job_inputs(db, user, "add-audio", job_id=job_id, video_url=video_url, video=video, audio_url=audio_url, audio=audio)
     if len(job.input_files) < 2:
-        raise HTTPException(status_code=400, detail="Add-audio requires resolving both video and audio files")
+        raise HTTPException(status_code=400, detail="Tinh nang ghep am thanh can ca file video va file audio")
     job.params = {"replace": replace}
     job.status = "pending"
     db.commit()
@@ -452,7 +452,7 @@ async def extract_frames(
     if not first_frame and not last_frame and timestamp is None:
         raise HTTPException(
             status_code=400,
-            detail="At least one of first_frame, last_frame, or timestamp is required",
+            detail="Ban phai chon it nhat mot trong cac tuy chon: first_frame, last_frame hoac timestamp",
         )
 
     job = await resolve_job_inputs(db, user, "extract-frames", job_id=job_id, video_url=video_url, video=video)
@@ -485,7 +485,7 @@ async def _get_job_or_404(
     if not job:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Job not found",
+            detail="Khong tim thay job",
         )
     return job
 
@@ -516,13 +516,13 @@ async def retry_job(
 ):
     job = db.query(Job).filter(Job.id == job_id, Job.user_id == user.id).first()
     if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+        raise HTTPException(status_code=404, detail="Khong tim thay job")
         
     if job.status not in ["failed", "pending"]:
-        raise HTTPException(status_code=400, detail="Only failed or pending jobs can be retried")
+        raise HTTPException(status_code=400, detail="Chi co the chay lai job dang loi hoac dang cho")
         
     if not job.params or not job.input_files:
-        raise HTTPException(status_code=400, detail="Job does not have enough parameters to retry")
+        raise HTTPException(status_code=400, detail="Job khong co du tham so de chay lai")
 
     missing_inputs = [
         input_file["object_key"]
@@ -537,7 +537,7 @@ async def retry_job(
     if missing_inputs:
         raise HTTPException(
             status_code=409,
-            detail=f"Cannot retry because input is missing from storage: {missing_inputs[0]}",
+            detail=f"Khong the chay lai vi file dau vao khong con trong bo nho luu tru: {missing_inputs[0]}",
         )
         
     job.status = "pending"
@@ -568,9 +568,9 @@ async def retry_job(
         background_tasks.add_task(video_service.process_extract_frames_job, job.id, job.input_files[0]["object_key"], p.get("first_frame"), p.get("last_frame"), p.get("timestamp"))
     else:
         job.status = "failed"
-        job.error_message = "Unknown operation"
+        job.error_message = "Thao tac khong xac dinh"
         db.commit()
-        raise HTTPException(status_code=400, detail="Unknown operation type")
+        raise HTTPException(status_code=400, detail="Loai thao tac khong xac dinh")
         
     return job
 
@@ -580,7 +580,7 @@ async def download_file(filename: str):
     if not file_path:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found",
+            detail="Khong tim thay file",
         )
     return FileResponse(
         path=file_path,

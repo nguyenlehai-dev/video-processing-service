@@ -24,14 +24,14 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
     if user_service.get_user_by_email(db, request.email):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
+            detail="Email nay da duoc dang ky",
         )
 
     # Check if username already exists
     if user_service.get_user_by_username(db, request.username):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already taken",
+            detail="Ten nguoi dung nay da ton tai",
         )
 
     # Create user (first user becomes admin)
@@ -56,7 +56,7 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
+            detail="Email hoac mat khau khong dung",
         )
 
     access_token = create_access_token(data={"sub": user.id})
@@ -75,7 +75,7 @@ async def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)):
     if not payload or payload.get("type") != "refresh":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired refresh token",
+            detail="Refresh token khong hop le hoac da het han",
         )
 
     user_id = payload.get("sub")
@@ -83,7 +83,7 @@ async def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)):
     if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or deactivated",
+            detail="Khong tim thay nguoi dung hoac tai khoan da bi vo hieu hoa",
         )
 
     access_token = create_access_token(data={"sub": user.id})
